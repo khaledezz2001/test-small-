@@ -189,14 +189,14 @@ PROMPT_SUMMARY = """
         - "languageSecondary": string (double-quoted, 50 characters max) -> the secondary language if present
         - "summaryShort": string (double-quoted, 100 characters max) -> a summary of the document up to 100 characters. Ensure that the returned text does not exceed the 100 character limit.
         - "summary": string (double-quoted, 300 characters max) -> a summary of the document up to 300 characters. Ensure that the returned text does not exceed the 300 character limit.
-        - "summaryDetailed": string (double-quoted, 700 characters max) -> a summary of the document up to 700 characters. Ensure that the returned text does not exceed the 700 character limit.
+        - "summaryDetailed": string (double-quoted, 700 characters max) -> a summary of the document IN THE DOCUMENT'S ORIGINAL LANGUAGE, up to 700 characters. Ensure that the returned text does not exceed the 700 character limit. The English version belongs in "summaryDetailedTranslated" only.
         - "summaryDetailedTranslated": string (double-quoted, 700 characters max) -> a summary of the document, in English, up to 700 characters. Ensure that the returned text does not exceed the 700 character limit.
         - "hasTranslation": boolean (unquoted, true or false) -> whether a translation is attached or embedded
         - "errorsDetected": string (double-quoted) -> typos, inconsistencies, OCR issues or anomalies
         - "documentDate": date (double-quoted, in YYYY-MM-DD format) -> date mentioned as the official issuance/signing date in the document. Return '1900-01-01' if not stated/unspecified
-        - "entitiesMentioned": string (double-quoted) -> companies or legal entities explicitly mentioned in the document. Extract names exactly as written in the document, preserving the original language and script. Where available, include roles such as buyer, seller, affiliate, counterparty - but only if clearly defined in the document. Avoid inferred roles or translated names. Do not deduplicate similar-looking names across languages.
-        - "peopleMentioned": string (double-quoted) -> individuals explicitly named in the document (e.g., directors, signatories, shareholders, legal representatives). Extract personal names exactly as written, preserving original language, spelling, and formatting. If the document clearly assigns a role or title, include it alongside the name. Do not infer missing roles or identities. Avoid merging bilingual versions of the same name unless they appear in the same clause.
-        - "relatedDocuments": string (double-quoted) -> extract references to other documents mentioned within the current document. These may include appendices, exhibits, annexes, translations, resolutions, contracts, certificates, or attachments. Only include references that are explicitly named, numbered, or otherwise clearly linked - either in the body of the text or as labeled sections. List them in the order of appearance using the exact document titles or references, preserving the original language. If no related documents are mentioned, leave this field empty. Do not include generic mentions (e.g., "see above", "as per the annex") unless a specific document is clearly referenced.
+        - "entitiesMentioned": string (double-quoted) -> companies or legal entities explicitly mentioned in the document. Extract names exactly as written in the document, preserving the original language and script. Where available, include roles such as buyer, seller, affiliate, counterparty - but only if clearly defined in the document. Avoid inferred roles or translated names. Do not deduplicate similar-looking names across languages. CRITICAL: return this field in the document's original language and script ONLY - never translate or transliterate (e.g. return «Дарбшир», NOT "Darbshir").
+        - "peopleMentioned": string (double-quoted) -> individuals explicitly named in the document (e.g., directors, signatories, shareholders, legal representatives). Extract personal names exactly as written, preserving original language, spelling, and formatting. If the document clearly assigns a role or title, include it alongside the name. Do not infer missing roles or identities. Avoid merging bilingual versions of the same name unless they appear in the same clause. CRITICAL: return names in the document's original language and script ONLY - never transliterate into Latin (e.g. return Пожитков Андрей Игоревич, NOT "Pozhitkov Andrey Igorevich").
+        - "relatedDocuments": string (double-quoted) -> extract references to other documents mentioned within the current document. These may include appendices, exhibits, annexes, translations, resolutions, contracts, certificates, or attachments. Only include references that are explicitly named, numbered, or otherwise clearly linked - either in the body of the text or as labeled sections. List them in the order of appearance using the exact document titles or references, preserving the original language. If no related documents are mentioned, leave this field empty. Do not include generic mentions (e.g., "see above", "as per the annex") unless a specific document is clearly referenced. CRITICAL: keep the exact original titles in the document's language - never translate them (e.g. return Приложение 1 – Договор займа, NOT "Appendix 1 - Loan Agreement").
         - "documentValidFrom": date (double-quoted, in YYYY-MM-DD format) -> effective start date if stated. Return '1900-01-01' if not stated/unspecified
         - "documentValidUntil": date (double-quoted, in YYYY-MM-DD format) -> expiration date if applicable. Return '1900-01-01' if not stated/unspecified
         - "keywords": string (double-quoted) -> key terms or clauses identified automatically (e.g., 'termination', 'governing law')
@@ -258,8 +258,8 @@ PROMPT_SIGNATURES = """
         - "isFullySigned": boolean (unquoted, true or false) -> whether the document is fully signed
         - "isPartiallySigned": boolean (unquoted, true or false) -> whether only some pages are signed
         - "signatureType": string (double-quoted) -> type of signature: Handwritten/Digital/None
-        - "signatures": string (double-quoted) -> list of signatories with name/role/page reference. Keep in original language where applicable
-        - "witnesses": string (double-quoted) -> list of witnesses if applicable. Keep in original language where applicable
+        - "signatures": string (double-quoted) -> list of signatories with name/role/page reference. Keep in the original language ALWAYS - never transliterate names into Latin script
+        - "witnesses": string (double-quoted) -> list of witnesses if applicable. Keep in the original language ALWAYS - never transliterate names into Latin script
         - "handwrittenElementsPresent": boolean (unquoted, true or false) -> whether handwritten content is found
         - "handwrittenElements": string (double-quoted) -> details of handwritten parts (e.g., names, dates, annotations). Keep in original language where applicable
         - "sealStampDetected": boolean (unquoted, true or false) -> boolean flag for the existence of official stamps, seals, logos
@@ -432,11 +432,43 @@ def classify_text_with_llm(text, max_length=60000, max_length_classification=800
     result_summary = enforce_char_limits(fill_schema_defaults(result_summary, schema_summary))
     result_signatures = fill_schema_defaults(result_signatures, schema_signatures)
 
-    return {
+    results = {
         "classification": result_classification,
         "summary": result_summary,
         "signatures": result_signatures,
     }
+    warn_if_transliterated(results, text)
+    return results
+
+
+# ===============================
+# TRANSLITERATION SAFETY NET
+# ===============================
+LATIN_TOKEN = re.compile(r"[A-Za-z][A-Za-z\-\.]{1,}")
+
+
+def warn_if_transliterated(results, full_text):
+    """Log a warning when name fields contain Latin tokens that do not
+    appear anywhere in the source text - a strong signal the model
+    transliterated names instead of preserving the original script
+    (e.g. 'Darbshir' in the output but only «Дарбшир» in the document).
+    """
+    text_lower = full_text.lower()
+    fields = [
+        ("summary.entitiesMentioned", results["summary"].get("entitiesMentioned", "")),
+        ("summary.peopleMentioned", results["summary"].get("peopleMentioned", "")),
+        ("summary.relatedDocuments", results["summary"].get("relatedDocuments", "")),
+        ("signatures.signatures", results["signatures"].get("signatures", "")),
+        ("signatures.witnesses", results["signatures"].get("witnesses", "")),
+    ]
+    for name, value in fields:
+        if not isinstance(value, str):
+            continue
+        for match in LATIN_TOKEN.finditer(value):
+            token = match.group()
+            if token.lower() not in text_lower:
+                print(f"[WARN] {name}: possible transliteration '{token}' "
+                      f"not found in source text", flush=True)
 
 
 # ===============================

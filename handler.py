@@ -185,16 +185,16 @@ PROMPT_SUMMARY = """
 
     Process the text (__TEXT__) and return a representative JSON object with the following properties and data types (information and/or instructions about each property is provided after the -> symbol):
         - "jurisdiction": string (double-quoted) -> a jurisdiction if present
-        - "languagePrimary": string (double-quoted, 50 characters max) -> the primary language of the document, i.e. the language of the main body of the document. Repetitive labels, stamps, letterheads or annex headings in another language must NOT outweigh the main text.
+        - "languagePrimary": string (double-quoted, 50 characters max) -> the primary language of the document, i.e. the language of the main body of the document. Repetitive labels, stamps, letterheads or annex headings in another language must NOT outweigh the main text. Procedure: count the pages written in each language - the language in which the majority of pages (especially the main agreement pages) is written is the primary language.
         - "languageSecondary": string (double-quoted, 50 characters max) -> the secondary language if present
         - "summaryShort": string (double-quoted, 100 characters max) -> a summary of the document up to 100 characters. Ensure that the returned text does not exceed the 100 character limit.
         - "summary": string (double-quoted, 300 characters max) -> a summary of the document up to 300 characters. Ensure that the returned text does not exceed the 300 character limit.
         - "summaryDetailed": string (double-quoted, 700 characters max) -> a summary of the document IN THE DOCUMENT'S ORIGINAL LANGUAGE (i.e. the language identified as "languagePrimary"), up to 700 characters. Ensure that the returned text does not exceed the 700 character limit. The English version belongs in "summaryDetailedTranslated" only.
         - "summaryDetailedTranslated": string (double-quoted, 700 characters max) -> the English translation OF the "summaryDetailed" field - it must convey the same content as "summaryDetailed", up to 700 characters. Ensure that the returned text does not exceed the 700 character limit.
         - "hasTranslation": boolean (unquoted, true or false) -> whether a full translation of the document's main content is attached or embedded. Bilingual labels, letterheads, plans or annex headings alone do NOT count as a translation.
-        - "errorsDetected": string (double-quoted) -> typos, inconsistencies, OCR issues or anomalies (e.g., duplicated clause numbers, missing clause numbers, truncated text, broken numbering)
+        - "errorsDetected": string (double-quoted) -> typos, inconsistencies, OCR issues or anomalies (e.g., duplicated clause numbers, missing clause numbers, truncated text, broken numbering). Always check the clause numbering sequence specifically and report every duplicate or skipped number you find.
         - "documentDate": date (double-quoted, in YYYY-MM-DD format) -> date mentioned as the official issuance/signing date in the document. Return '1900-01-01' if not stated/unspecified
-        - "entitiesMentioned": string (double-quoted) -> companies or legal entities explicitly mentioned in the document. Extract names exactly as written in the document, preserving the original language and script. Where available, include roles such as buyer, seller, affiliate, counterparty - but only if clearly defined in the document. Avoid inferred roles or translated names. Do not deduplicate similar-looking names across languages. CRITICAL: return this field in the document's original language and script ONLY - never translate or transliterate (e.g. return «Дарбшир», NOT "Darbshir"). If the document contains a named list of companies (e.g. client companies, group members, counterparties), include EVERY entry from that list.
+        - "entitiesMentioned": string (double-quoted) -> companies or legal entities explicitly mentioned in the document. Extract names exactly as written in the document, preserving the original language and script. Where available, include roles such as buyer, seller, affiliate, counterparty - but only if clearly defined in the document. Avoid inferred roles or translated names. Do not deduplicate similar-looking names across languages. CRITICAL: return this field in the document's original language and script ONLY - never translate or transliterate (e.g. return «Дарбшир», NOT "Darbshir"). If the document contains a named list of companies (e.g. client companies, group members, counterparties), include EVERY entry from that list. Example: if the text says "Tenant Client Companies include: X Ltd, Y Ltd", then both X Ltd and Y Ltd must appear in this field.
         - "peopleMentioned": string (double-quoted) -> individuals explicitly named in the document (e.g., directors, signatories, shareholders, legal representatives). Extract personal names exactly as written, preserving original language, spelling, and formatting. If the document clearly assigns a role or title, include it alongside the name. Do not infer missing roles or identities. Avoid merging bilingual versions of the same name unless they appear in the same clause. CRITICAL: return names in the document's original language and script ONLY - never transliterate into Latin (e.g. return Пожитков Андрей Игоревич, NOT "Pozhitkov Andrey Igorevich"). NEVER expand initials into full names - if the document says "Шатрова Ю.И.", return exactly "Шатрова Ю.И.", not an invented full name. Do NOT skip people who appear only with initials - include them exactly as written, with their role if assigned (e.g. "Шатрова Ю.И. (генеральный директор)"). Also include individuals from appendices and annexes (e.g. signatories and authorized representatives of counterparties). Include the role in parentheses where clearly assigned (e.g. "Заварина Анастасия Сергеевна (генеральный директор)").
         - "relatedDocuments": string (double-quoted) -> extract references to other documents mentioned within the current document. These may include appendices, exhibits, annexes, translations, resolutions, contracts, certificates, or attachments. Only include references that are explicitly named, numbered, or otherwise clearly linked - either in the body of the text or as labeled sections. List them in the order of appearance using the exact document titles or references, preserving the original language. If no related documents are mentioned, leave this field empty. Do not include generic mentions (e.g., "see above", "as per the annex") unless a specific document is clearly referenced. CRITICAL: keep the exact original titles in the document's language - never translate them (e.g. return Приложение 1 – Договор займа, NOT "Appendix 1 - Loan Agreement").
         - "documentValidFrom": date (double-quoted, in YYYY-MM-DD format) -> effective start date if stated. Return '1900-01-01' if not stated/unspecified
@@ -258,10 +258,10 @@ PROMPT_SIGNATURES = """
         - "isFullySigned": boolean (unquoted, true or false) -> whether the document is fully signed
         - "isPartiallySigned": boolean (unquoted, true or false) -> whether only some pages are signed
         - "signatureType": string (double-quoted) -> type of signature: Handwritten/Digital/None
-        - "signatures": string (double-quoted) -> list of signatories with name/role/page reference in the format "NAME; ROLE" (e.g. "NICOS MICHAELAS; LANDLORD"). Keep in the original language ALWAYS - never transliterate names into Latin script
+        - "signatures": string (double-quoted) -> list of signatories with name/role/page reference in the format "NAME; ROLE" (e.g. "NICOS MICHAELAS; LANDLORD"). Assign each signatory the role of the party they represent according to the party definitions in the agreement (e.g. if the parties clause defines DEMETRA INVESTMENTS PUBLIC LIMITED as "the Landlords", its signatories are LANDLORD; if Altus Citadel Corporate Services Ltd is defined as "the Tenant", its signatories are TENANT). Keep in the original language ALWAYS - never transliterate names into Latin script
         - "witnesses": string (double-quoted) -> list of witnesses if applicable. Keep in the original language ALWAYS - never transliterate names into Latin script
         - "handwrittenElementsPresent": boolean (unquoted, true or false) -> whether handwritten content is found
-        - "handwrittenElements": string (double-quoted) -> details of handwritten parts (e.g., names, dates, annotations). Keep in original language where applicable
+        - "handwrittenElements": string (double-quoted) -> details of handwritten parts (e.g., names, dates, annotations). Keep in original language where applicable. Printed letterhead text, printed form fields and stamp imprints are NOT handwritten elements.
         - "sealStampDetected": boolean (unquoted, true or false) -> boolean flag for the existence of official stamps, seals, logos
 
     Make sure to return a valid JSON object using double quotes for all property names and string values, adhering to the JSON standard (RFC 8259).
@@ -397,7 +397,7 @@ def process_with_llm(prompt, schema, max_tokens=2000):
 # MAIN PIPELINE: classify_text_with_llm
 # (identical slicing logic to LLMPrompts.txt)
 # ===============================
-def classify_text_with_llm(text, max_length=60000, max_length_classification=8000):
+def classify_text_with_llm(text, max_length=60000, max_length_classification=8000, pages=None):
 
     # --- slicing: exactly as in the original function ---
     text_classification = text[:max_length_classification]
@@ -443,6 +443,9 @@ def classify_text_with_llm(text, max_length=60000, max_length_classification=800
         "summary": result_summary,
         "signatures": result_signatures,
     }
+    # --- deterministic corrections (language conflict, name typos) ---
+    correct_languages(results, pages if pages else [{"page": 1, "text": text}], text)
+    fix_entity_typos(results, text)
     warn_if_transliterated(results, text)
     return results
 
@@ -496,6 +499,130 @@ def dedup_name_field(value):
 
 
 # ===============================
+# LANGUAGE CORRECTION (code-level, deterministic)
+# ===============================
+SCRIPT_TO_LANGUAGE = {"Greek": "Greek", "Cyrillic": "Russian", "Arabic": "Arabic"}
+LANGUAGE_TO_SCRIPT = {
+    "greek": "Greek", "russian": "Cyrillic", "arabic": "Arabic",
+    "ukrainian": "Cyrillic", "bulgarian": "Cyrillic", "serbian": "Cyrillic",
+    "belarusian": "Cyrillic", "macedonian": "Cyrillic",
+}
+SCRIPT_RANGES = {
+    "Greek": [(0x0370, 0x03FF)],
+    "Cyrillic": [(0x0400, 0x04FF)],
+    "Arabic": [(0x0600, 0x06FF)],
+}
+
+
+def count_script_chars(text):
+    counts = {"Latin": 0, "Greek": 0, "Cyrillic": 0, "Arabic": 0}
+    for ch in text:
+        cp = ord(ch)
+        for name, ranges in SCRIPT_RANGES.items():
+            if any(lo <= cp <= hi for lo, hi in ranges):
+                counts[name] += 1
+                break
+        else:
+            if (0x41 <= cp <= 0x5A) or (0x61 <= cp <= 0x7A):
+                counts["Latin"] += 1
+    return counts
+
+
+def dominant_page_script(pages):
+    """Vote per page (majority script of that page's text) - repetitive
+    annex labels cannot outweigh the main body, because each page only
+    votes once."""
+    votes = {}
+    for p in pages:
+        counts = count_script_chars(p.get("text", ""))
+        script = max(counts, key=counts.get)
+        votes[script] = votes.get(script, 0) + 1
+    return max(votes, key=votes.get), votes
+
+
+def correct_languages(results, pages, full_text):
+    """Fix languagePrimary/languageSecondary when they conflict with the
+    dominant script of the document (measured page-by-page)."""
+    summary = results["summary"]
+    dominant, votes = dominant_page_script(pages)
+    primary = (summary.get("languagePrimary") or "").strip()
+    primary_script = LANGUAGE_TO_SCRIPT.get(primary.lower(), "Latin")
+
+    if dominant != primary_script:
+        if dominant in SCRIPT_TO_LANGUAGE:
+            new_primary = SCRIPT_TO_LANGUAGE[dominant]
+            old_secondary = (summary.get("languageSecondary") or "").strip()
+            summary["languageSecondary"] = primary if primary != new_primary else old_secondary
+            summary["languagePrimary"] = new_primary
+            print(f"[FIX] languagePrimary '{primary}' -> '{new_primary}' "
+                  f"(page script votes: {votes})", flush=True)
+        elif dominant == "Latin" and primary_script in SCRIPT_TO_LANGUAGE:
+            # Latin-dominant document but model claimed e.g. Greek: if there
+            # are strong English markers, promote English and demote the
+            # model's choice to secondary.
+            markers = len(re.findall(
+                r"\b(the|and|of|to|in|is|for|shall|agreement|tenant|landlord)\b",
+                full_text.lower()))
+            if markers >= 20:
+                summary["languagePrimary"] = "English"
+                summary["languageSecondary"] = primary
+                print(f"[FIX] languagePrimary '{primary}' -> 'English' "
+                      f"({markers} English markers; page votes: {votes})", flush=True)
+            else:
+                print(f"[WARN] languagePrimary '{primary}' conflicts with dominant "
+                      f"script '{dominant}' (votes: {votes}) - not auto-corrected",
+                      flush=True)
+
+    # English primary: the "translation" is the identity - keep both fields
+    # identical so summaryDetailedTranslated always matches summaryDetailed.
+    if summary.get("languagePrimary") == "English":
+        if summary.get("summaryDetailedTranslated") != summary.get("summaryDetailed"):
+            summary["summaryDetailedTranslated"] = summary.get("summaryDetailed", "")
+            print("[FIX] summaryDetailedTranslated synced with summaryDetailed "
+                  "(primary language is English)", flush=True)
+
+
+# ===============================
+# ENTITY TYPO REPAIR (fuzzy match against source text)
+# ===============================
+def fix_entity_typos(results, full_text):
+    """Repair small OCR/model typos in ALL-CAPS name tokens by fuzzy-matching
+    against words actually present in the source text (e.g. 'DEMETER' ->
+    'DEMETRA'). Only applies to ALL-CAPS tokens >= 5 chars with a close
+    (cutoff 0.8) unique match, and logs every correction."""
+    import difflib
+    text_words = {}
+    for w in re.findall(r"\w+", full_text, re.UNICODE):
+        text_words.setdefault(w.lower(), w)
+    vocab = list(text_words.keys())
+
+    def fix_field(value):
+        if not isinstance(value, str):
+            return value
+        changed = []
+
+        def repl(m):
+            w = m.group()
+            wl = w.lower()
+            if len(w) >= 5 and w.isupper() and wl not in text_words:
+                close = difflib.get_close_matches(wl, vocab, n=1, cutoff=0.8)
+                if close:
+                    src = text_words[close[0]]
+                    changed.append(f"{w} -> {src}")
+                    return src
+            return w
+
+        new_value = re.sub(r"\w+", repl, value, flags=re.UNICODE)
+        return new_value, changed
+
+    for field in ("entitiesMentioned", "peopleMentioned"):
+        new_value, changed = fix_field(results["summary"].get(field, ""))
+        if changed:
+            results["summary"][field] = new_value
+            print(f"[FIX] {field} typo repair: {changed}", flush=True)
+
+
+# ===============================
 # RUNPOD HANDLER
 # ===============================
 def handler(event):
@@ -521,6 +648,7 @@ def handler(event):
             full_text,
             max_length=max_length,
             max_length_classification=max_length_classification,
+            pages=pages,
         )
     except KeyError as e:
         return {"error": f"Missing field: {e}"}
